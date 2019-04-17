@@ -7,14 +7,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
 
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
@@ -24,8 +20,6 @@ import org.apache.maven.plugins.annotations.Parameter;
  */
 @Mojo(name="release")
 public class ReleaseMojo extends AbstractMojo {
-	private Log log = getLog();
-	
 	/**
 	 * 
 	 */
@@ -73,37 +67,38 @@ public class ReleaseMojo extends AbstractMojo {
 	 */
 	@Override
 	public void execute() throws MojoExecutionException, MojoFailureException {
-		List<String[]> cmds = new LinkedList<>();
-		
-		cmds.add(mavenVersionsSet(releaseVersion));
-		cmds.add(gitAdd());
-		cmds.add(gitCommit(releaseMessage));
-		
-		cmds.add(gitTag());
-		if (releaseDeploy) {
-			cmds.add(mavenDeploy());
-		}
-		
-		cmds.add(mavenVersionsSet(developmentVersion));
-		cmds.add(gitAdd());
-		cmds.add(gitCommit(developmentMessage));
-		
 		try {
-			for (String[] cmd : cmds) {
-				if (log.isDebugEnabled()) {
-					log.debug("Call command: " + Arrays.toString(cmd));
-				}
+			call(mavenVersionsSet(releaseVersion));
+			call(gitAdd());
+			call(gitCommit(releaseMessage));
 
-				ProcessBuilder builder = new ProcessBuilder(cmd);
-				Process process = builder.start();
-				print(process.getInputStream());
-				process.waitFor();
+			call(gitTag());
+			if (releaseDeploy) {
+				call(mavenDeploy());
 			}
+
+			call(mavenVersionsSet(developmentVersion));
+			call(gitAdd());
+			call(gitCommit(developmentMessage));
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
 		}
 	}
 	
+	/**
+	 *
+	 * @param cmd
+	 * @throws MojoExecutionException
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	private void call(String[] cmd) throws MojoExecutionException, IOException, InterruptedException {
+		ProcessBuilder builder = new ProcessBuilder(cmd);
+		Process process = builder.start();
+		print(process.getInputStream());
+		process.waitFor();
+	}
+
 	/**
 	 * 
 	 * @param version
