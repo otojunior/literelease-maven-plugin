@@ -3,20 +3,38 @@
  */
 package br.org.otojunior.plugin.literelease;
 
-import java.io.BufferedReader;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.artifactId;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.configuration;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.element;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.executeMojo;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.executionEnvironment;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.goal;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.groupId;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.plugin;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.version;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.util.Collections;
 
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.BuildPluginManager;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.invoker.DefaultInvocationRequest;
+import org.apache.maven.shared.invoker.DefaultInvoker;
+import org.apache.maven.shared.invoker.InvocationRequest;
+import org.apache.maven.shared.invoker.Invoker;
+import org.apache.maven.shared.invoker.MavenInvocationException;
 import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.twdata.maven.mojoexecutor.MojoExecutor;
 
 /**
  * @author Oto Soares Coelho Junior (oto.coelho-junior@serpro.gov.br)
@@ -24,6 +42,24 @@ import org.eclipse.jgit.api.errors.GitAPIException;
  */
 @Mojo(name="release")
 public class ReleaseMojo extends AbstractMojo {
+	/**
+	 * 
+	 */
+	@Component
+	private MavenProject mavenProject;
+
+	/**
+	 * 
+	 */
+	@Component
+	private MavenSession mavenSession;
+
+	/**
+	 * 
+	 */
+	@Component
+	private BuildPluginManager pluginManager;
+	
 	/**
 	 * 
 	 */
@@ -65,46 +101,99 @@ public class ReleaseMojo extends AbstractMojo {
 	 */
 	@Parameter(property="release.version", required=true)
 	private String releaseVersion;
-	
+
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		try {
-			Git git = Git.open(new File("./.git"));
+			File gitDirectory = new File(mavenProject.getBasedir(), ".git");
+			Git git = Git.open(gitDirectory);
 			
-			call(mavenVersionsSet(releaseVersion));
+			goalSetVersion(releaseVersion);
 			jgitAdd(git);
 			jgitCommit(git, releaseMessage);
-
+			
 			jgitTag(git);
 			if (releaseDeploy) {
-				call(mavenDeploy());
+				goalClean();
+				goalDeploy();
 			}
-
-			call(mavenVersionsSet(developmentVersion));
+			
+			goalSetVersion(developmentVersion);
 			jgitAdd(git);
 			jgitCommit(git, developmentMessage);
-		} catch (IOException | InterruptedException e) {
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 	
 	/**
-	 *
-	 * @param cmd
+	 * 
 	 * @throws MojoExecutionException
-	 * @throws IOException
-	 * @throws InterruptedException
 	 */
-	private void call(String[] cmd) throws MojoExecutionException, IOException, InterruptedException {
-		ProcessBuilder builder = new ProcessBuilder(cmd);
-		Process process = builder.start();
-		print(process.getInputStream());
-		process.waitFor();
+	private void goalClean() throws MojoExecutionException {
+		executeMojo(
+			plugin(
+				groupId("org.apache.maven.plugins"),
+				artifactId("maven-clean-plugin"),
+				version("3.1.0")
+		    ),
+			goal("clean"),
+			configuration(
+				element(MojoExecutor.name("skip"), "false")
+		    ),
+			executionEnvironment(
+		        mavenProject,
+		        mavenSession,
+		        pluginManager
+		    )
+		);
 	}
 	
+	/**
+	 * 
+	 * @throws MojoExecutionException
+	 */
+	private void goalDeploy() throws MojoExecutionException {
+		InvocationRequest request = new DefaultInvocationRequest();
+        request.setPomFile(mavenProject.getModel().getPomFile());
+        request.setGoals(Collections.singletonList("deploy"));
+
+        Invoker invoker = new DefaultInvoker();
+        try {
+            invoker.execute(request);
+        } catch (MavenInvocationException e) {
+            e.printStackTrace();
+        }
+	}
+	
+	/**
+	 * 
+	 * @param version
+	 * @throws MojoExecutionException
+	 */
+	private void goalSetVersion(String version) throws MojoExecutionException {
+		executeMojo(
+			plugin(
+				groupId("org.codehaus.mojo"),
+				artifactId("versions-maven-plugin"),
+				version("2.8.1")
+		    ),
+			goal("set"),
+			configuration(
+				element(MojoExecutor.name("newVersion"), version),
+				element(MojoExecutor.name("generateBackupPoms"), "false")
+		    ),
+			executionEnvironment(
+		        mavenProject,
+		        mavenSession,
+		        pluginManager
+		    )
+		);
+	}
+
 	/**
 	 * 
 	 * @param git
@@ -118,7 +207,7 @@ public class ReleaseMojo extends AbstractMojo {
 			throw new MojoExecutionException(e.getMessage(), e); 
 		}
 	}
-	
+
 	/**
 	 * 
 	 * @param message
@@ -143,46 +232,6 @@ public class ReleaseMojo extends AbstractMojo {
 			git.tag().setName(releaseVersion).call();
 		} catch (GitAPIException e) {
 			throw new MojoExecutionException(e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * 
-	 * @return
-	 */
-	private String[] mavenDeploy() {
-		return new String[] { mavenExecutable, "clean", "deploy" };
-	}
-
-	/**
-	 * 
-	 * @param version
-	 * @return
-	 */
-	private String[] mavenVersionsSet(String version) {
-		return new String[] {
-			mavenExecutable,
-			"versions:set",
-			"-DnewVersion=" + version,
-			"-DgenerateBackupPoms=false"};
-	}
-
-	/**
-	 * 
-	 * @param inputStream
-	 * @throws MojoExecutionException
-	 */
-	private void print(InputStream inputStream) throws MojoExecutionException {
-		try (BufferedReader in =
-				new BufferedReader(
-				new InputStreamReader(inputStream))) {
-			String line = in.readLine();
-			while (line != null) {
-				System.out.println(line);
-				line = in.readLine();
-			}
-		} catch (IOException e) {
-			throw new MojoExecutionException(e.getMessage(), e); 
 		}
 	}
 }
