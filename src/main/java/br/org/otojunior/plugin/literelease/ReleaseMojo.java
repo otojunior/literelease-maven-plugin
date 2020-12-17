@@ -4,6 +4,7 @@
 package br.org.otojunior.plugin.literelease;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -13,6 +14,9 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.eclipse.jgit.api.CommitCommand;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 
 /**
  * @author Oto Soares Coelho Junior (oto.coelho-junior@serpro.gov.br)
@@ -68,18 +72,20 @@ public class ReleaseMojo extends AbstractMojo {
 	@Override
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		try {
+			Git git = Git.open(new File("./.git"));
+			
 			call(mavenVersionsSet(releaseVersion));
-			call(gitAdd());
-			call(gitCommit(releaseMessage));
+			jgitAdd(git);
+			jgitCommit(git, releaseMessage);
 
-			call(gitTag());
+			jgitTag(git);
 			if (releaseDeploy) {
 				call(mavenDeploy());
 			}
 
 			call(mavenVersionsSet(developmentVersion));
-			call(gitAdd());
-			call(gitCommit(developmentMessage));
+			jgitAdd(git);
+			jgitCommit(git, developmentMessage);
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
 		}
@@ -98,33 +104,48 @@ public class ReleaseMojo extends AbstractMojo {
 		print(process.getInputStream());
 		process.waitFor();
 	}
-
+	
 	/**
 	 * 
-	 * @param version
-	 * @return
+	 * @param git
+	 * @throws MojoExecutionException
 	 */
-	private String[] gitAdd() {
-		return new String[] { gitExecutable, "add", "-A" };
-	}
-
-	/**
-	 * 
-	 * @param version
-	 * @return
-	 */
-	private String[] gitCommit(String message) {
-		return new String[] { gitExecutable, "commit", "-m", message };
+	private void jgitAdd(Git git) throws MojoExecutionException {
+		try {
+			git.add().addFilepattern(".").call();
+			git.add().setUpdate(true).addFilepattern(".").call();
+		} catch (GitAPIException e) {
+			throw new MojoExecutionException(e.getMessage(), e); 
+		}
 	}
 	
 	/**
 	 * 
-	 * @return
+	 * @param message
+	 * @throws MojoExecutionException 
 	 */
-	private String[] gitTag() {
-		return new String[] { gitExecutable, "tag", releaseVersion };
+	private void jgitCommit(Git git, String message) throws MojoExecutionException {
+		try {
+			CommitCommand commit = git.commit();
+			commit.setMessage(message).call();
+		} catch (GitAPIException e) {
+			throw new MojoExecutionException(e.getMessage(), e);
+		}
 	}
-	
+
+	/**
+	 * 
+	 * @param git
+	 * @throws MojoExecutionException
+	 */
+	private void jgitTag(Git git) throws MojoExecutionException {
+		try {
+			git.tag().setName(releaseVersion).call();
+		} catch (GitAPIException e) {
+			throw new MojoExecutionException(e.getMessage(), e);
+		}
+	}
+
 	/**
 	 * 
 	 * @return
@@ -132,7 +153,7 @@ public class ReleaseMojo extends AbstractMojo {
 	private String[] mavenDeploy() {
 		return new String[] { mavenExecutable, "clean", "deploy" };
 	}
-	
+
 	/**
 	 * 
 	 * @param version
