@@ -59,48 +59,54 @@ public class ReleaseMojo extends AbstractMojo {
 	 */
 	@Component
 	private BuildPluginManager pluginManager;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="development.messsage", required=false, defaultValue="[Next Development]")
 	private String developmentMessage;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="development.version", required=true)
 	private String developmentVersion;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="git.executable", required=false, defaultValue="git")
 	private String gitExecutable;
-		
+
 	/**
 	 * 
 	 */
 	@Parameter(property="maven.executable", required=false, defaultValue="mvn")
 	private String mavenExecutable;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="release.deploy", required=false, defaultValue="true")
 	private boolean releaseDeploy;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="release.messsage", required=false, defaultValue="[Release]")
 	private String releaseMessage;
-	
+
 	/**
 	 * 
 	 */
 	@Parameter(property="release.version", required=true)
 	private String releaseVersion;
+
+	/**
+	 * 
+	 */
+	@Parameter(property="tag.name", required=true, defaultValue="${release.version}")
+	private String tagname;
 
 	/**
 	 * {@inheritDoc}
@@ -110,17 +116,17 @@ public class ReleaseMojo extends AbstractMojo {
 		try {
 			File gitDirectory = new File(mavenProject.getBasedir(), ".git");
 			Git git = Git.open(gitDirectory);
-			
+
 			goalSetVersion(releaseVersion);
 			jgitAdd(git);
 			jgitCommit(git, releaseMessage);
-			
+
 			jgitTag(git);
 			if (releaseDeploy) {
 				goalClean();
 				goalDeploy();
 			}
-			
+
 			goalSetVersion(developmentVersion);
 			jgitAdd(git);
 			jgitCommit(git, developmentMessage);
@@ -128,7 +134,7 @@ public class ReleaseMojo extends AbstractMojo {
 			e.printStackTrace();
 		}
 	}
-	
+
 	/**
 	 * 
 	 * @throws MojoExecutionException
@@ -151,7 +157,7 @@ public class ReleaseMojo extends AbstractMojo {
 		    )
 		);
 	}
-	
+
 	/**
 	 * 
 	 * @throws MojoExecutionException
@@ -168,7 +174,7 @@ public class ReleaseMojo extends AbstractMojo {
             e.printStackTrace();
         }
 	}
-	
+
 	/**
 	 * 
 	 * @param version
@@ -229,7 +235,7 @@ public class ReleaseMojo extends AbstractMojo {
 	 */
 	private void jgitTag(Git git) throws MojoExecutionException {
 		try {
-			git.tag().setName(releaseVersion).call();
+			git.tag().setName(tagname).call();
 		} catch (GitAPIException e) {
 			throw new MojoExecutionException(e.getMessage(), e);
 		}
