@@ -115,21 +115,21 @@ public class ReleaseMojo extends AbstractMojo {
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		try {
 			File gitDirectory = new File(mavenProject.getBasedir(), ".git");
-			Git git = Git.open(gitDirectory);
+			try (Git git = Git.open(gitDirectory)) {
+				goalSetVersion(releaseVersion);
+				jgitAdd(git);
+				jgitCommit(git, releaseMessage);
 
-			goalSetVersion(releaseVersion);
-			jgitAdd(git);
-			jgitCommit(git, releaseMessage);
+				jgitTag(git);
+				if (releaseDeploy) {
+					goalClean();
+					goalDeploy();
+				}
 
-			jgitTag(git);
-			if (releaseDeploy) {
-				goalClean();
-				goalDeploy();
+				goalSetVersion(developmentVersion);
+				jgitAdd(git);
+				jgitCommit(git, developmentMessage);
 			}
-
-			goalSetVersion(developmentVersion);
-			jgitAdd(git);
-			jgitCommit(git, developmentMessage);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
