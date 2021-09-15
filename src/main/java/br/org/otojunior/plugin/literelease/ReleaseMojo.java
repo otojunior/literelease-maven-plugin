@@ -75,18 +75,6 @@ public class ReleaseMojo extends AbstractMojo {
 	/**
 	 * 
 	 */
-	@Parameter(property="git.executable", required=false, defaultValue="git")
-	private String gitExecutable;
-
-	/**
-	 * 
-	 */
-	@Parameter(property="maven.executable", required=false, defaultValue="mvn")
-	private String mavenExecutable;
-
-	/**
-	 * 
-	 */
 	@Parameter(property="release.deploy", required=false, defaultValue="true")
 	private boolean releaseDeploy;
 
