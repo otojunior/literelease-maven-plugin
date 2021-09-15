@@ -75,8 +75,8 @@ public class ReleaseMojo extends AbstractMojo {
 	/**
 	 * 
 	 */
-	@Parameter(property="release.deploy", required=false, defaultValue="true")
-	private boolean releaseDeploy;
+	@Parameter(property="release.goal", required=false, defaultValue="deploy")
+	private String releaseGoal;
 
 	/**
 	 * 
@@ -109,9 +109,9 @@ public class ReleaseMojo extends AbstractMojo {
 				jgitCommit(git, releaseMessage);
 
 				jgitTag(git);
-				if (releaseDeploy) {
+				if (!releaseGoal.isEmpty()) {
 					goalClean();
-					goalDeploy();
+					invokeGoal(releaseGoal);
 				}
 
 				goalSetVersion(developmentVersion);
@@ -150,10 +150,10 @@ public class ReleaseMojo extends AbstractMojo {
 	 * 
 	 * @throws MojoExecutionException
 	 */
-	private void goalDeploy() throws MojoExecutionException {
+	private void invokeGoal(final String goal) throws MojoExecutionException {
 		InvocationRequest request = new DefaultInvocationRequest();
         request.setPomFile(mavenProject.getModel().getPomFile());
-        request.setGoals(Collections.singletonList("deploy"));
+        request.setGoals(Collections.singletonList(goal));
 
         Invoker invoker = new DefaultInvoker();
         try {
